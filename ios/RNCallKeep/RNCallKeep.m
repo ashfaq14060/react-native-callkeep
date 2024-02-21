@@ -1137,6 +1137,7 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
 
             // End the background task
             [[UIApplication sharedApplication] endBackgroundTask:backgroundTask];
+            [self clearInitialEvents];
         }];
 
         // Start the task
@@ -1146,6 +1147,7 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
     }else{
         [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
         [action fulfill];
+        [self clearInitialEvents];
     }
 }
 
