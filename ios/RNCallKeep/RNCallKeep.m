@@ -1076,7 +1076,7 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
     [action fulfill];
 }
 
-// Ending incoming call
+// End incoming call
 - (void)provider:(CXProvider *)provider performEndCallAction:(CXEndCallAction *)action
 {
 #ifdef DEBUG
@@ -1086,65 +1086,54 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
     if ([[UIApplication sharedApplication] applicationState] == UIApplicationStateBackground) {
         NSLog(@"Rejecting call in background, starting the background task to complete the rejection.");
 
-        // Start a background task to ensure that the rejection process completes
-        UIBackgroundTaskIdentifier backgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
-            // The expiration handler is called if the background task is about to be terminated
-            // You can use this block to clean up or perform additional tasks if needed
-            // ...
-
-            // End the background task
+        __block UIBackgroundTaskIdentifier backgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
             [[UIApplication sharedApplication] endBackgroundTask:backgroundTask];
+            backgroundTask = UIBackgroundTaskInvalid;
         }];
+
+        MMKV *mmkv = [MMKV defaultMMKV];
+        NSString *region = [mmkv getStringForKey:@"region"];
+
         NSString *callUUID = [action.callUUID.UUIDString lowercaseString];
+        NSString *urlString;
 
-        // Perform any background tasks needed (e.g., network requests, cleanup)
-        NSString *urlString = [NSString stringWithFormat:@"https://tbudux3y2l.execute-api.us-east-1.amazonaws.com/uat/update-phone-call-session/%@", callUUID];
+        if ([region isEqualToString:@"US"]) {
+            urlString = [NSString stringWithFormat:@"https://k9t6db0ug0.execute-api.us-east-1.amazonaws.com/staging/update-phone-call-session/%@", callUUID];
+            NSLog(@"Region value: %@", region);
+        } else {
+            urlString = [NSString stringWithFormat:@"https://dgmu1e4drb.execute-api.eu-central-1.amazonaws.com/staging/update-phone-call-session/%@", callUUID];
+            NSLog(@"Using non-US region or no region value found in MMKV");
+        }
 
-
-        // Create the URL
         NSURL *url = [NSURL URLWithString:urlString];
-
-        // Create a mutable request
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-
-        // Set the HTTP method to POST
         [request setHTTPMethod:@"POST"];
-
-        // Set the content type header
         [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
 
-        // Create the request body as a dictionary
         NSDictionary *requestBody = @{@"status": @"DECLINED"};
-
-        // Convert the dictionary to JSON data
         NSData *requestData = [NSJSONSerialization dataWithJSONObject:requestBody options:0 error:nil];
-
-        // Set the request body
         [request setHTTPBody:requestData];
 
-        // Log the request URL (instead of the raw data)
         NSLog(@"Request URL: %@", urlString);
 
-        // Create a URLSession task
         NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             if (error) {
                 NSLog(@"Error sending POST request: %@", error.localizedDescription);
             } else {
-                // Handle the response
                 NSString *responseString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
                 NSLog(@"POST request response: %@", responseString);
             }
 
-            // End the background task
-            [[UIApplication sharedApplication] endBackgroundTask:backgroundTask];
+            [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": callUUID }];
+            [action fulfill];
             [self clearInitialEvents];
+
+            [[UIApplication sharedApplication] endBackgroundTask:backgroundTask];
+            backgroundTask = UIBackgroundTaskInvalid;
         }];
 
-        // Start the task
         [task resume];
-        [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
-        [action fulfill];
-    }else{
+    } else {
         [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
         [action fulfill];
         [self clearInitialEvents];
